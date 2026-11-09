@@ -52,6 +52,7 @@ function App() {
   const [places, setPlaces] = useState<SafePlace[]>([]);
   const [helplines, setHelplines] = useState<Helpline[]>(INDIA_HELPLINES);
   const [loadingPlaces, setLoadingPlaces] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const loadProfile = useCallback(async (userId: string) => {
     if (!supabase) return;
@@ -87,23 +88,47 @@ function App() {
 
   useEffect(() => { loadPublicData(); }, [loadPublicData]);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mobileMenuOpen]);
+
   const isAdmin = profile?.role === 'admin';
   const activeTab = tab === 'admin' && !isAdmin ? 'route' : tab;
 
   async function handleSignOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
-    setSession(null); setProfile(null); setNotice('You have signed out.'); setTab('route');
+    setSession(null); setProfile(null); setNotice('You have signed out.'); setTab('route'); setMobileMenuOpen(false);
   }
 
   return (
     <div className="app-root">
       <header className="topbar">
-        <button className="brand" onClick={() => setTab('route')} aria-label="SafeRoute home">
+        <button
+          type="button"
+          className="mobile-menu-toggle"
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-navigation"
+        >
+          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+        <button className="brand" onClick={() => { setTab('route'); setMobileMenuOpen(false); }} aria-label="SafeRoute home">
           <span className="brand-mark"><ShieldCheck size={21} /></span>
           <span><strong>safe<span>route</span></strong><small>WOMEN'S SAFETY ECOSYSTEM</small></span>
         </button>
-        <nav className="desktop-nav">
+        <nav className="desktop-nav" aria-label="Main navigation">
           {NAV.map((item) => {
             const Icon = item.icon;
             return <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => setTab(item.id)}><Icon size={16} />{item.label}</button>;
@@ -111,8 +136,31 @@ function App() {
           {isAdmin && <button className={`nav-item ${tab === 'admin' ? 'active' : ''}`} onClick={() => setTab('admin')}><Shield size={16} />Admin</button>}
         </nav>
         <div className="top-actions">
-          {session ? <><span className="user-chip"><span className="avatar">{(profile?.display_name || 'U').slice(0, 1).toUpperCase()}</span><span>{profile?.display_name || 'Member'}</span></span><button className="icon-btn" onClick={handleSignOut} title="Sign out"><LogOut size={17} /></button></> : <button className="button button-dark button-small" onClick={() => setAuthOpen(true)}><LogIn size={15} /> Sign in</button>}
+          {session ? <><span className="user-chip"><span className="avatar">{(profile?.display_name || 'U').slice(0, 1).toUpperCase()}</span><span>{profile?.display_name || 'Member'}</span></span><button className="icon-btn" onClick={handleSignOut} title="Sign out" aria-label="Sign out"><LogOut size={17} /></button></> : <button className="button button-dark button-small" onClick={() => setAuthOpen(true)}><LogIn size={15} /> Sign in</button>}
         </div>
+        {mobileMenuOpen && (
+          <>
+            <button className="mobile-menu-backdrop" type="button" aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)} />
+            <nav className="mobile-nav-panel" id="mobile-navigation" aria-label="Mobile navigation">
+              {NAV.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button key={item.id} className={`nav-item ${activeTab === item.id ? 'active' : ''}`} onClick={() => { setTab(item.id); setMobileMenuOpen(false); }}>
+                    <Icon size={18} /> <span>{item.label}</span>
+                  </button>
+                );
+              })}
+              {isAdmin && (
+                <button className={`nav-item ${tab === 'admin' ? 'active' : ''}`} onClick={() => { setTab('admin'); setMobileMenuOpen(false); }}>
+                  <Shield size={18} /> <span>Admin dashboard</span>
+                </button>
+              )}
+              {session && <div className="mobile-menu-account"><span className="avatar">{(profile?.display_name || 'U').slice(0, 1).toUpperCase()}</span><span>{profile?.display_name || 'Member'}</span></div>}
+              {!session && <button className="button button-dark button-full mobile-menu-signin" onClick={() => { setAuthOpen(true); setMobileMenuOpen(false); }}><LogIn size={16} /> Sign in</button>}
+              {session && <button className="button button-outline button-full mobile-menu-signout" onClick={handleSignOut}><LogOut size={16} /> Sign out</button>}
+            </nav>
+          </>
+        )}
       </header>
 
       {!isSupabaseConfigured && <div className="setup-banner"><AlertCircle size={16} /> Preview mode: add Supabase credentials and run the included SQL migration to enable accounts, chat, live data and admin features.</div>}
